@@ -45,7 +45,8 @@ INSTALLED_APPS = [
 
     # local apps
     'tgbot.apps.TgbotConfig',
-    'arcgis',
+
+    'django_cleanup.apps.CleanupConfig',
 ]
 
 MIDDLEWARE = [
@@ -123,8 +124,8 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/3.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+LANGUAGE_CODE = 'ru-ru'
+TIME_ZONE = 'Europe/Moscow'
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
@@ -135,8 +136,15 @@ USE_TZ = True
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(PROJECT_ROOT, 'static')
+
+# Base url to serve media files
+MEDIA_URL = '/media/'
+
+# Path where media is stored
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
 
 
 # -----> CELERY
@@ -149,6 +157,8 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_DEFAULT_QUEUE = 'default'
+
+DEFAULT_AUTO_FIELD='django.db.models.AutoField' 
 
 
 # -----> TELEGRAM
@@ -163,22 +173,22 @@ if TELEGRAM_TOKEN is None:
 TELEGRAM_LOGS_CHAT_ID = os.getenv("TELEGRAM_LOGS_CHAT_ID", default=None)
 
 # -----> SENTRY
-# import sentry_sdk
-# from sentry_sdk.integrations.django import DjangoIntegration
-# from sentry_sdk.integrations.celery import CeleryIntegration
-# from sentry_sdk.integrations.redis import RedisIntegration
+#import sentry_sdk
+#from sentry_sdk.integrations.django import DjangoIntegration
+#from sentry_sdk.integrations.celery import CeleryIntegration
+#from sentry_sdk.integrations.redis import RedisIntegration
 
-# sentry_sdk.init(
-#     dsn="INPUT ...ingest.sentry.io/ LINK",
-#     integrations=[
-#         DjangoIntegration(),
-#         CeleryIntegration(),
-#         RedisIntegration(),
-#     ],
-#     traces_sample_rate=0.1,
+#sentry_sdk.init(
+    #dsn="INPUT ...ingest.sentry.io/ LINK",
+    #integrations=[
+        #DjangoIntegration(),
+        #CeleryIntegration(),
+       # RedisIntegration(),
+    #],
+    #traces_sample_rate=0.1,
 
-#     # If you wish to associate users to errors (assuming you are using
-#     # django.contrib.auth) you may enable sending PII data.
-#     send_default_pii=True
-# )
+    # If you wish to associate users to errors (assuming you are using
+    # django.contrib.auth) you may enable sending PII data.
+    #send_default_pii=True
+#)
 

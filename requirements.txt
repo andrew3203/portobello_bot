@@ -28,5 +28,11 @@ django-celery-beat
 # Telegram
 python-telegram-bot
 
-# monitoring
-# sentry-sdk
+#monitoring
+#sentry-sdk
+
+pillow
+
+django-cleanup
+
+cyrtranslit

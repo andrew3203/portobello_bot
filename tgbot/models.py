@@ -1,15 +1,18 @@
 from __future__ import annotations
+from email import message
+from random import randint
+import cyrtranslit
 
 from typing import Union, Optional, Tuple
 
 from django.db import models
 from django.db.models import QuerySet, Manager
-from telegram import Update
+from telegram import Update, Video
 from telegram.ext import CallbackContext
 
 from dtb.settings import DEBUG
 from tgbot.handlers.utils.info import extract_user_data_from_update
-from utils.models import CreateUpdateTracker, nb, CreateTracker, GetOrNoneManager
+from utils.models import CreateUpdateTracker, CreateTracker, nb, GetOrNoneManager
 
 
 class AdminUserManager(Manager):
@@ -18,19 +21,47 @@ class AdminUserManager(Manager):
 
 
 class User(CreateUpdateTracker):
-    user_id = models.PositiveBigIntegerField(primary_key=True)  # telegram_id
-    username = models.CharField(max_length=32, **nb)
-    first_name = models.CharField(max_length=256)
-    last_name = models.CharField(max_length=256, **nb)
-    language_code = models.CharField(max_length=8, help_text="Telegram client's lang", **nb)
-    deep_link = models.CharField(max_length=64, **nb)
-
-    is_blocked_bot = models.BooleanField(default=False)
-
-    is_admin = models.BooleanField(default=False)
+    user_id = models.PositiveBigIntegerField(
+        'Телеграм id',
+        primary_key=True
+    )
+    username = models.CharField(
+        'Username пользователя',
+        max_length=32, **nb
+    )
+    first_name = models.CharField(
+        'Имя',
+        max_length=256, **nb
+    )
+    last_name = models.CharField(
+        'Фаммилия',
+        max_length=256, **nb
+    )
+    language_code = models.CharField(
+        'Язык',
+        max_length=8, 
+        help_text="Язык приложения телеграм", **nb
+    )
+    deep_link = models.CharField(
+        'Стартовый Код',
+        max_length=64, **nb
+    )
+    is_blocked_bot = models.BooleanField(
+        'Бот в блоке',
+        default=False
+    )
+    is_admin = models.BooleanField(
+        'Админ',
+        default=False
+    )
 
     objects = GetOrNoneManager()  # user = User.objects.get_or_none(user_id=<some_id>)
     admins = AdminUserManager()  # User.admins.all()
+
+    class Meta:
+        verbose_name = 'Клиент'
+        verbose_name_plural = 'Клиенты'
+        ordering = ['-created_at']
 
     def __str__(self):
         return f'@{self.username}' if self.username is not None else f'{self.user_id}'
@@ -39,13 +70,15 @@ class User(CreateUpdateTracker):
     def get_user_and_created(cls, update: Update, context: CallbackContext) -> Tuple[User, bool]:
         """ python-telegram-bot's Update, Context --> User instance """
         data = extract_user_data_from_update(update)
-        u, created = cls.objects.update_or_create(user_id=data["user_id"], defaults=data)
+        u, created = cls.objects.update_or_create(
+            user_id=data["user_id"], defaults=data)
 
         if created:
             # Save deep_link to User model
             if context is not None and context.args is not None and len(context.args) > 0:
                 payload = context.args[0]
-                if str(payload).strip() != str(data["user_id"]).strip():  # you can't invite yourself
+                # you can't invite yourself
+                if str(payload).strip() != str(data["user_id"]).strip():
                     u.deep_link = payload
                     u.save()
 
@@ -75,21 +108,129 @@ class User(CreateUpdateTracker):
         return f"{self.first_name} {self.last_name}" if self.last_name else f"{self.first_name}"
 
 
-class Location(CreateTracker):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    latitude = models.FloatField()
-    longitude = models.FloatField()
+class Group(CreateTracker):
+    name = models.CharField(
+        'Название',
+        max_length=32
+    )
+    users = models.ManyToManyField(User)
 
-    objects = GetOrNoneManager()
+    class Meta:
+        verbose_name = 'Группа'
+        verbose_name_plural = 'Группы'
+        ordering = ['-created_at']
 
-    def __str__(self):
-        return f"user: {self.user}, created at {self.created_at.strftime('(%H:%M, %d %B %Y)')}"
+    def __str__(self) -> str:
+        return f'{self.name}'
 
-    def save(self, *args, **kwargs):
-        super(Location, self).save(*args, **kwargs)
-        # Parse location with arcgis
-        from arcgis.tasks import save_data_from_arcgis
-        if DEBUG:
-            save_data_from_arcgis(latitude=self.latitude, longitude=self.longitude, location_id=self.pk)
-        else:
-            save_data_from_arcgis.delay(latitude=self.latitude, longitude=self.longitude, location_id=self.pk)
+
+def user_directory_path(instance, filename):
+    base = 'abcdefghijklomopqrstuvwsynz'
+    pre = ''.join([base[randint(0, 25)] for _ in range(3)])
+    name = instance.name.replace(' ', '-')
+    new_filename = cyrtranslit.to_latin(name, 'ru')
+    new_filename = f"{new_filename}__{pre}.{filename.split('.')[-1]}".lower()
+    return f'messages/{new_filename}'
+
+
+class File(CreateTracker):
+    name = models.CharField(
+        'Название',
+        max_length=120,
+    )
+    tg_id = models.CharField(
+        'Телеграм id',
+        max_length=100, default=None, **nb
+    )
+    video = models.FileField(
+        'Файл, видео',
+        upload_to=user_directory_path, 
+        null=True
+    )
+
+    class Meta:
+        verbose_name = 'Медиа файл'
+        verbose_name_plural = 'Медиа файлы'
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.name}, {self.tg_id}'
+
+
+class MessageType(models.TextChoices):
+    SIMPLE_TEXT = 'SIMPLE_TEXT', 'Простой текст'
+    POLL = 'POLL', 'Опрос'
+    KEYBOORD_BTN = 'KEYBOORD_BTN', 'Кнопка'
+    FLY_BTN = 'FLY_BTN', 'Чат. Кнопка'
+
+
+class Message(CreateUpdateTracker):
+    name = models.CharField(
+        'Название',
+        max_length=20,
+    )
+    text = models.TextField(
+        'Название',
+        max_length=500,
+    )
+    message_type = models.CharField(
+        'Тип Сообщения',
+        max_length=25,
+        choices=MessageType.choices,
+        default=MessageType.SIMPLE_TEXT,
+    )
+    clicks = models.IntegerField(
+        'Кол-во кликов',
+        default=0
+    )
+    group = models.ForeignKey(
+        Group,
+        null=True,
+        on_delete=models.SET_NULL
+    )
+    messages = models.ManyToManyField('self')
+    files = models.ManyToManyField(
+        File,
+        verbose_name='Картинки, Видео, Файлы'
+    )
+    class Meta:
+        verbose_name = 'Сообщение'
+        verbose_name_plural = 'Сообщения'
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.name}'
+
+    @staticmethod
+    def get_structure():
+        d = {}
+        for o in Message.objects.all():
+            d[o.id] = ' '.join(o.values_list('messages__id', flat=True))
+
+        return d
+
+
+class Mailing(CreateTracker):
+    name = models.CharField(
+        'Название',
+        max_length=20,
+    )
+    message = models.ForeignKey(
+        Message,
+        on_delete=models.SET_NULL,
+        null=True
+    )
+    users = models.ManyToManyField(User)
+    group = models.ForeignKey(
+        Group,
+        null=True,
+        on_delete=models.SET_NULL
+    )
+
+    class Meta:
+        verbose_name = 'Рассылка'
+        verbose_name_plural = 'Рассылки'
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.name}'
