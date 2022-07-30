@@ -1,6 +1,8 @@
 from django import forms
 from django.forms import ModelForm
-from tgbot.models import Mailing, User,Group, MessageType, File
+from tgbot.models import *
+from django.core.files.storage import default_storage
+
 
 
 class MakeGroupForm(ModelForm):
@@ -15,6 +17,7 @@ class MakeGroupForm(ModelForm):
 
 
 class BroadcastForm(forms.Form):
+    _selected_action = forms.CharField(widget=forms.MultipleHiddenInput)
     mailing_name = forms.CharField(
         label='Название рассылки',
         widget=forms.TextInput
@@ -30,10 +33,35 @@ class BroadcastForm(forms.Form):
     files = forms.ModelMultipleChoiceField(
         label='Выбирете существующие файлы для рассылки',
         queryset=File.objects.all(),
-        widget=forms.CheckboxSelectMultiple
+        required=False
+        
     )
-    file = forms.FileField(
-        label='Загрузите файл для рассылки',
+    users = forms.ModelMultipleChoiceField(
+        label='Пользователи для рассылки',
+        queryset=User.objects.all()
     )
-    _users_id = forms.CharField(widget=forms.MultipleHiddenInput)        
+    group = forms.ModelChoiceField(
+        label='Группа для рассылки',
+        queryset=Group.objects.all(),
+        required=False
+        
+    )
 
+    def save(self):
+        print(self.cleaned_data)
+        name = self.cleaned_data['mailing_name']
+        message = Message(
+            name=name, 
+            text=self.cleaned_data['message_text'],
+            message_type=self.cleaned_data['message_type'],
+        )
+        message.save()
+        message.files.set(self.cleaned_data['files'])
+        broadcast = Broadcast(
+            name=name, message=message,
+            group=self.cleaned_data['group']
+        )
+        broadcast.save()
+        broadcast.users.set(self.cleaned_data['users'])
+        broadcast.save()
+        return broadcast

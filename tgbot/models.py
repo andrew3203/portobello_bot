@@ -142,7 +142,7 @@ class File(CreateTracker):
         'Телеграм id',
         max_length=100, default=None, **nb
     )
-    video = models.FileField(
+    file = models.FileField(
         'Файл, видео',
         upload_to=user_directory_path, 
         null=True
@@ -210,7 +210,7 @@ class Message(CreateUpdateTracker):
         return d
 
 
-class Mailing(CreateTracker):
+class Broadcast(CreateTracker):
     name = models.CharField(
         'Название',
         max_length=20,
