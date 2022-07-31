@@ -5,6 +5,7 @@ import cyrtranslit
 
 from typing import Union, Optional, Tuple
 import re
+import json
 
 from django.db import models
 from django.db.models import QuerySet, Manager
@@ -242,15 +243,27 @@ class Message(CreateUpdateTracker):
             if groupNum in (2, 4):
                 ways[btn] = message_ids[matchNum]
 
-        return self.text[:end_text], res, ways
+        return {
+            'text': self.text[:end_text],
+            'markup': res,
+            'ways': ways
+        }
+
 
     @staticmethod
     def get_structure():
         d = {}
         for o in Message.objects.all():
-            d[o.id] = ' '.join(o.values_list('messages__id', flat=True))
+            data = o.parse_text()
+            d[o.id] = {
+                'messages': list(o.messages.values_list('id', flat=True)),
+                'text': data['text'],
+                'ways': data['ways'],
+                'markup': data['markup']
 
-        return d
+            }
+
+        return json.dumps(d, ensure_ascii=False)
 
 
 class Broadcast(CreateTracker):
