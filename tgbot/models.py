@@ -4,6 +4,7 @@ from random import randint
 import cyrtranslit
 
 from typing import Union, Optional, Tuple
+import re
 
 from django.db import models
 from django.db.models import QuerySet, Manager
@@ -39,7 +40,7 @@ class User(CreateUpdateTracker):
     )
     language_code = models.CharField(
         'Язык',
-        max_length=8, 
+        max_length=8,
         help_text="Язык приложения телеграм", **nb
     )
     deep_link = models.CharField(
@@ -144,7 +145,7 @@ class File(CreateTracker):
     )
     file = models.FileField(
         'Файл, видео',
-        upload_to=user_directory_path, 
+        upload_to=user_directory_path,
         null=True
     )
 
@@ -167,11 +168,11 @@ class MessageType(models.TextChoices):
 class Message(CreateUpdateTracker):
     name = models.CharField(
         'Название',
-        max_length=20,
+        max_length=40,
     )
     text = models.TextField(
-        'Название',
-        max_length=500,
+        'Текст',
+        max_length=4096,
     )
     message_type = models.CharField(
         'Тип Сообщения',
@@ -181,18 +182,25 @@ class Message(CreateUpdateTracker):
     )
     clicks = models.IntegerField(
         'Кол-во кликов',
-        default=0
+        default=0,
+        blank=True
     )
     group = models.ForeignKey(
         Group,
         null=True,
+        blank=True,
         on_delete=models.SET_NULL
     )
-    messages = models.ManyToManyField('self')
+    messages = models.ManyToManyField(
+        'self',
+        blank=True
+    )
     files = models.ManyToManyField(
         File,
+        blank=True,
         verbose_name='Картинки, Видео, Файлы'
     )
+
     class Meta:
         verbose_name = 'Сообщение'
         verbose_name_plural = 'Сообщения'
@@ -200,6 +208,41 @@ class Message(CreateUpdateTracker):
 
     def __str__(self) -> str:
         return f'{self.name}'
+
+    def parse_text(self) -> Tuple:
+        regex = r"(\[[^\[\]]+\]\([^\(\)]+\)\s*\n)|(\[[^\[\]]+\]\s*\n)|(\[[^\[\]]+\]\([^\(\)]+\))|(\[[^\[\]]+\])"
+        # group 1 - элемент кнопки с сылкой (с \n)
+        # group 2 - обычный элемент кнопки опроса (с \n)
+
+        # group 3 - элемент кнопки с сылкой (без \n)
+        # group 4 - обычный элемент кнопки опроса (без \n)
+        self.text = re.sub('\\r', '', self.text)
+        matches = re.finditer(regex, self.text, re.MULTILINE)
+        message_ids = self.messages.values_list('id', flat=True)
+
+        res = [[]]
+        ways = {}
+        end_text = 100000
+        for matchNum, match in enumerate(matches, start=0):
+            group = match.group()
+            end_text = min(end_text, match.start())
+            groupNum = 1 + list(match.groups()).index(group)
+            if groupNum in (1, 3):
+                btn, link = group.split('](')
+                btn = btn[1:]
+                link = re.sub('(\)\s*)|([\)\n])', '', link)
+            else:
+                btn = re.sub('(\]\s*)|([\[\]\n])', '', group)
+                link = None
+            
+            res[-1].append((btn, link))
+            if groupNum in (1, 2):
+                res.append([])
+
+            if groupNum in (2, 4):
+                ways[btn] = message_ids[matchNum]
+
+        return self.text[:end_text], res, ways
 
     @staticmethod
     def get_structure():
@@ -234,3 +277,8 @@ class Broadcast(CreateTracker):
 
     def __str__(self) -> str:
         return f'{self.name}'
+
+    def get_users(self):
+        ids1 = self.users.values_list('user_id', flat=True)
+        ids2 = self.group.users.values_list('user_id', flat=True)
+        return list(set(ids1+ids2))
