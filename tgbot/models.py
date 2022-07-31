@@ -16,6 +16,11 @@ from dtb.settings import DEBUG
 from tgbot.handlers.utils.info import extract_user_data_from_update
 from utils.models import CreateUpdateTracker, CreateTracker, nb, GetOrNoneManager
 
+from django.db.models.signals import post_delete, post_save
+from django.dispatch import receiver
+import redis
+from dtb.settings import REDIS_URL
+
 
 class AdminUserManager(Manager):
     def get_queryset(self):
@@ -28,7 +33,7 @@ class User(CreateUpdateTracker):
         primary_key=True
     )
     username = models.CharField(
-        'Username пользователя',
+        'Username',
         max_length=32, **nb
     )
     first_name = models.CharField(
@@ -174,6 +179,7 @@ class Message(CreateUpdateTracker):
     text = models.TextField(
         'Текст',
         max_length=4096,
+        help_text='Размер текста не более 4096 символов. Если вы используете кнопки, то их кол-во должно быть равно кол-ву сообщений выбранных ниже. Название кнопки должно совпадать с названием сообщения, к которому оно ведет.'
     )
     message_type = models.CharField(
         'Тип Сообщения',
@@ -190,11 +196,15 @@ class Message(CreateUpdateTracker):
         Group,
         null=True,
         blank=True,
-        on_delete=models.SET_NULL
+        on_delete=models.SET_NULL,
+        verbose_name='Группы пользователей',
+        help_text='Группы пользователей, для которых доступно данное сообщение. Если группа не выбрана, сообщение доступно всем пользователям.'
     )
     messages = models.ManyToManyField(
         'self',
-        blank=True
+        blank=True,
+        verbose_name='Сообщения',
+        help_text='Сообщения, которые могут быть показаны после данного сообщения. Название кнопки должно совпадать с названием сообщения, к которому оно ведет. Кол-во таких сообщений должно быть равно кол-ву кнопок в тексте этого сообщения.'
     )
     files = models.ManyToManyField(
         File,
@@ -260,10 +270,9 @@ class Message(CreateUpdateTracker):
                 'text': data['text'],
                 'ways': data['ways'],
                 'markup': data['markup']
-
             }
 
-        return json.dumps(d, ensure_ascii=False)
+        return d
 
 
 class Broadcast(CreateTracker):
@@ -276,10 +285,14 @@ class Broadcast(CreateTracker):
         on_delete=models.SET_NULL,
         null=True
     )
-    users = models.ManyToManyField(User)
+    users = models.ManyToManyField(
+        User,
+        blank=True,
+    )
     group = models.ForeignKey(
         Group,
         null=True,
+        blank=True,
         on_delete=models.SET_NULL
     )
 
@@ -295,3 +308,12 @@ class Broadcast(CreateTracker):
         ids1 = self.users.values_list('user_id', flat=True)
         ids2 = self.group.users.values_list('user_id', flat=True)
         return list(set(ids1+ids2))
+
+
+#@receiver(post_delete, sender=Message)
+#@receiver(post_save, sender=Message)
+def my_handler(sender, **kwargs):
+    r = redis.from_url(REDIS_URL)
+    r.ping()
+    d = Message.get_structure()
+    r.mset(d)

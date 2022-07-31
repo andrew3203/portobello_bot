@@ -116,22 +116,6 @@ def set_up_commands(bot_instance: Bot) -> None:
             'broadcast': 'Broadcast message 📨',
             'export_users': 'Export users.csv 👥',
         },
-        'es': {
-            'start': 'Iniciar el bot de django 🚀',
-            'stats': 'Estadísticas de bot 📊',
-            'admin': 'Mostrar información de administrador ℹ️',
-            'ask_location': 'Enviar ubicación 📍',
-            'broadcast': 'Mensaje de difusión 📨',
-            'export_users': 'Exportar users.csv 👥',
-        },
-        'fr': {
-            'start': 'Démarrer le bot Django 🚀',
-            'stats': 'Statistiques du bot 📊',
-            'admin': "Afficher les informations d'administrateur ℹ️",
-            'ask_location': 'Envoyer emplacement 📍',
-            'broadcast': 'Message de diffusion 📨',
-            "export_users": 'Exporter users.csv 👥',
-        },
         'ru': {
             'start': 'Запустить django бота 🚀',
             'stats': 'Статистика бота 📊',

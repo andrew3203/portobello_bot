@@ -25,7 +25,7 @@ admin.site.index_title = 'Portobello Bot Администратор'
 admin.site.site_title = 'Admin'
 
 @admin.register(DjangoUser)
-class UserAdmin(admin.ModelAdmin):
+class DjangoAdmin(admin.ModelAdmin):
     list_display = [
         'username', 'email', 'first_name',
         'is_staff', 'date_joined'
@@ -71,8 +71,29 @@ class UserAdmin(admin.ModelAdmin):
     ]
     list_filter = ["is_blocked_bot", ]
     search_fields = ('username', 'user_id')
-
-    actions = ['broadcast', 'make_group']
+    fieldsets = (
+        ('Основное', {
+            'fields': (
+                ("user_id",),
+                ('username', 'language_code'),
+                ('first_name', 'last_name'),
+            ),
+        }),
+        ('Дополнительная информация', {
+            'fields': (
+                ('deep_link',),
+                ("is_blocked_bot",),
+                ('is_admin',),
+            ),
+        }),
+        ('Важные даты', {
+            'fields': (
+                ('created_at',),
+                ('updated_at',)
+            ),
+        }),
+    )
+    readonly_fields = ('created_at', 'updated_at')
 
     def make_group(self, request, queryset):
         user_ids = queryset.values_list('user_id', flat=True)
@@ -119,6 +140,9 @@ class UserAdmin(admin.ModelAdmin):
                     'title': u'Создание рассылки сообщений'
                 }
             )
+    actions = [broadcast, make_group]
+    broadcast.short_description = 'Создать рассылку'
+    make_group.short_description = 'Создать группу'
 
 
 @admin.register(Message)
@@ -128,6 +152,36 @@ class MessageAdmin(admin.ModelAdmin):
     ]
     list_filter = ["message_type", "group"]
     search_fields = ('name', 'user_id')
+    fieldsets = (
+        ('Основное', {
+            'fields': (
+                ("name",),
+                ('text',),
+                ('message_type',),
+                ('clicks',)
+            ),
+        }),
+        ('Ограничения', {
+            'fields': (
+                ('messages',),
+                ("group",),
+
+            ),
+        }),
+        ('Медия', {
+            'fields': (
+                ("files",),
+            ),
+        }),
+        ('Важные даты', {
+            'fields': (
+                ('created_at',),
+                ('updated_at',)
+            ),
+        }),
+    )
+    readonly_fields = ('created_at', 'updated_at')
+    filter_horizontal = ('messages', 'files')
 
 
 @admin.register(Group)
@@ -136,6 +190,25 @@ class GroupAdmin(admin.ModelAdmin):
         'name', 'created_at'
     ]
     search_fields = ('name',)
+    fieldsets = (
+        ('Основное', {
+            'fields': (
+                ("name",),
+            ),
+        }),
+        ('Пользователи', {
+            'fields': (
+                ("users",),
+            ),
+        }),
+        ('Важные даты', {
+            'fields': (
+                ('created_at',)
+            ),
+        }),
+    )
+    filter_horizontal = ('users',)
+    readonly_fields = ('created_at',)
 
 
 @admin.register(Broadcast)
@@ -144,17 +217,55 @@ class BroadcastAdmin(admin.ModelAdmin):
         'name', 'created_at'
     ]
     search_fields = ('name', 'tg_id')
-    actions = ['send_mailing']
+    fieldsets = (
+        ('Основное', {
+            'fields': (
+                ("name",),
+                ("message",),
+            ),
+        }),
+        ('Пользователи и группы', {
+            'fields': (
+                ("users",),
+                ('group',),
+            ),
+        }),
+        ('Важные даты', {
+            'fields': (
+                ('created_at',)
+            ),
+        }),
+    )
+    filter_horizontal = ('users',)
+    readonly_fields = ('created_at',)
 
     def send_mailing(self, request, queryset):
         group_ids = queryset.values_list('group_id', flat=True)
         self.message_user(
-            request, f"Broadcasting of {len(queryset)} messages has been started")
+            request, f"Рассылка {len(queryset)} сообщений начата!")
+
+    actions = [send_mailing]
+    send_mailing.short_description = 'Начать рассылку'
 
 
 @admin.register(File)
-class ImageAdmin(admin.ModelAdmin):
+class FileAdmin(admin.ModelAdmin):
     list_display = [
-        'name', 'tg_id', 'created_at'
+        'name', 'tg_id', 'file', 'created_at'
     ]
     search_fields = ('name', 'tg_id')
+    fieldsets = (
+        ('Основное', {
+            'fields': (
+                ("name",),
+                ("tg_id",),
+            ),
+        }),
+        ('Информация о файле', {
+            'fields': (
+                ("file"),
+                ('created_at',),
+            ),
+        })
+    )
+    readonly_fields = ('created_at',)
