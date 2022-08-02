@@ -245,7 +245,7 @@ class Message(CreateUpdateTracker):
             else:
                 btn = re.sub('(\]\s*)|([\[\]\n])', '', group)
                 link = None
-            
+
             res[-1].append((btn, link))
             if groupNum in (1, 2):
                 res.append([])
@@ -258,7 +258,6 @@ class Message(CreateUpdateTracker):
             'markup': res,
             'ways': ways
         }
-
 
     @staticmethod
     def get_structure():
@@ -273,6 +272,28 @@ class Message(CreateUpdateTracker):
             }
 
         return d
+
+
+class Poll(CreateUpdateTracker):
+    message = models.ForeignKey(
+        Message,
+        on_delete=models.CASCADE,
+        verbose_name='Сообщение'
+
+    )
+    answers = models.TextField(
+        max_length=500,
+        verbose_name='Ответы',
+        blank=True, null=True
+    )
+
+    class Meta:
+        verbose_name = 'Опрос'
+        verbose_name_plural = 'Опросы'
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'Ответы на опрос: {self.message.name}'
 
 
 class Broadcast(CreateTracker):
@@ -310,8 +331,8 @@ class Broadcast(CreateTracker):
         return list(set(ids1+ids2))
 
 
-#@receiver(post_delete, sender=Message)
-#@receiver(post_save, sender=Message)
+# @receiver(post_delete, sender=Message)
+# @receiver(post_save, sender=Message)
 def my_handler(sender, **kwargs):
     r = redis.from_url(REDIS_URL)
     r.ping()

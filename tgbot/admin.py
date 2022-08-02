@@ -269,3 +269,25 @@ class FileAdmin(admin.ModelAdmin):
         })
     )
     readonly_fields = ('created_at',)
+
+@admin.register(models.Poll)
+class PollAdmin(admin.ModelAdmin):
+    list_display = [
+        'message', 'created_at'
+    ]
+    search_fields = ('message',)
+    fieldsets = (
+        ('Основное', {
+            'fields': (
+                ("message",),
+                ("answers",),
+            ),
+        }),
+        ('Важные даты', {
+            'fields': (
+                ("created_at"),
+                ('updated_at',),
+            ),
+        })
+    )
+    readonly_fields = ('created_at','updated_at')
