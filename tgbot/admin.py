@@ -5,26 +5,26 @@ from django.shortcuts import render
 from dtb.settings import DEBUG
 
 from django.contrib.auth.models import Group as gp
-from django.contrib.auth.models import User as DjangoUser
+from django.contrib.auth.models import User as DefaultUser
 
 from django.urls import reverse
 
 
-from tgbot.models import *
+from tgbot import models
 from tgbot import forms
 
 from tgbot.tasks import broadcast_message
 from tgbot.handlers.broadcast_message.utils import _send_message
 
 admin.site.unregister(gp)
-admin.site.unregister(DjangoUser)
+admin.site.unregister(DefaultUser)
 
 
 admin.site.site_header = 'Portobello Bot Админ панель'
 admin.site.index_title = 'Portobello Bot Администратор'
 admin.site.site_title = 'Admin'
 
-@admin.register(DjangoUser)
+@admin.register(DefaultUser)
 class DjangoAdmin(admin.ModelAdmin):
     list_display = [
         'username', 'email', 'first_name',
@@ -62,7 +62,7 @@ class DjangoAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('password',)
 
-@admin.register(User)
+@admin.register(models.User)
 class UserAdmin(admin.ModelAdmin):
     list_display = [
         'user_id', 'username', 'first_name', 'last_name',
@@ -145,7 +145,7 @@ class UserAdmin(admin.ModelAdmin):
     make_group.short_description = 'Создать группу'
 
 
-@admin.register(Message)
+@admin.register(models.Message)
 class MessageAdmin(admin.ModelAdmin):
     list_display = [
         'name', 'message_type', 'clicks', 'group', 'updated_at', 'created_at'
@@ -184,7 +184,7 @@ class MessageAdmin(admin.ModelAdmin):
     filter_horizontal = ('messages', 'files')
 
 
-@admin.register(Group)
+@admin.register(models.Group)
 class GroupAdmin(admin.ModelAdmin):
     list_display = [
         'name', 'created_at'
@@ -211,7 +211,7 @@ class GroupAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at',)
 
 
-@admin.register(Broadcast)
+@admin.register(models.Broadcast)
 class BroadcastAdmin(admin.ModelAdmin):
     list_display = [
         'name', 'created_at'
@@ -248,7 +248,7 @@ class BroadcastAdmin(admin.ModelAdmin):
     send_mailing.short_description = 'Начать рассылку'
 
 
-@admin.register(File)
+@admin.register(models.File)
 class FileAdmin(admin.ModelAdmin):
     list_display = [
         'name', 'tg_id', 'file', 'created_at'
