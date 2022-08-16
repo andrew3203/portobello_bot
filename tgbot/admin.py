@@ -148,14 +148,14 @@ class UserAdmin(admin.ModelAdmin):
 @admin.register(models.Message)
 class MessageAdmin(admin.ModelAdmin):
     list_display = [
-        'name', 'message_type', 'clicks', 'group', 'updated_at', 'created_at'
+        'name', 'pk', 'message_type', 'clicks', 'group', 'updated_at', 'created_at'
     ]
     list_filter = ["message_type", "group"]
     search_fields = ('name', 'user_id')
     fieldsets = (
         ('Основное', {
             'fields': (
-                ("name",),
+                ("name", 'pk'),
                 ('text',),
                 ('message_type',),
                 ('clicks',)
@@ -180,7 +180,7 @@ class MessageAdmin(admin.ModelAdmin):
             ),
         }),
     )
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'pk')
     filter_horizontal = ('messages', 'files')
 
 

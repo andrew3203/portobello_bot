@@ -6,6 +6,7 @@ import cyrtranslit
 from typing import Union, Optional, Tuple
 import re
 import json
+from datetime import timedelta
 
 from django.db import models
 from django.db.models import QuerySet, Manager
@@ -72,6 +73,43 @@ class User(CreateUpdateTracker):
 
     def __str__(self):
         return f'@{self.username}' if self.username is not None else f'{self.user_id}'
+    
+    @staticmethod
+    def get_state(user_id):
+        r = redis.from_url(REDIS_URL, decode_responses=True)
+
+        if r.exists(user_id):
+            message_id = json.loads(r.get(user_id))
+            return json.loads(r.get(message_id))
+
+        return None
+    
+    @staticmethod
+    def get_prev_next_states(user_id, msg_text):
+        r = redis.from_url(REDIS_URL, decode_responses=True)
+
+        if r.exists(user_id):
+            message_id = json.loads(r.get(user_id))
+            prev_state = json.loads(r.get(message_id))
+            next_state_id = prev_state['ways'].get(
+                msg_text, 
+                Message.objects.filter(name='Ошибка состояния').first().id
+            )
+        else:
+            prev_state = None
+            next_state_id = Message.objects.filter(name='Старт').first().id
+
+        raw_next_sate = r.get(next_state_id)
+        next_state = json.loads(raw_next_sate)
+        r.setex(user_id, timedelta(hours=10), value=next_state_id)
+        
+        return prev_state, next_state
+
+
+    @staticmethod
+    def set_state(user_id, message_id):
+        r = redis.from_url(REDIS_URL)
+        r.setex(user_id, timedelta(hours=10), value=message_id)
 
     @classmethod
     def get_user_and_created(cls, update: Update, context: CallbackContext) -> Tuple[User, bool]:
@@ -85,9 +123,8 @@ class User(CreateUpdateTracker):
             if context is not None and context.args is not None and len(context.args) > 0:
                 payload = context.args[0]
                 # you can't invite yourself
-                if str(payload).strip() != str(data["user_id"]).strip():
-                    u.deep_link = payload
-                    u.save()
+                u.deep_link = payload
+                u.save()
 
         return u, created
 
@@ -219,8 +256,14 @@ class Message(CreateUpdateTracker):
 
     def __str__(self) -> str:
         return f'{self.name}'
+    
+    def _gen_msg_dict(self):
+        messages = self.messages.values_list('name', 'id')
+        messages = [(k.lower().replace(' ', ''), v) for k, v in messages]
+        return dict(messages)
 
-    def parse_text(self) -> Tuple:
+    def parse_text(self) -> dict:
+        msg_dict = self._gen_msg_dict()
         regex = r"(\[[^\[\]]+\]\([^\(\)]+\)\s*\n)|(\[[^\[\]]+\]\s*\n)|(\[[^\[\]]+\]\([^\(\)]+\))|(\[[^\[\]]+\])"
         # group 1 - элемент кнопки с сылкой (с \n)
         # group 2 - обычный элемент кнопки опроса (с \n)
@@ -234,7 +277,7 @@ class Message(CreateUpdateTracker):
         res = [[]]
         ways = {}
         end_text = 100000
-        for matchNum, match in enumerate(matches, start=0):
+        for match in matches:
             group = match.group()
             end_text = min(end_text, match.start())
             groupNum = 1 + list(match.groups()).index(group)
@@ -251,25 +294,30 @@ class Message(CreateUpdateTracker):
                 res.append([])
 
             if groupNum in (2, 4):
-                ways[btn] = message_ids[matchNum]
+                btn_name = btn.lower().replace(' ', '')
+                ways[btn_name] = msg_dict[btn_name]
+
 
         return {
+            'message_type': self.message_type,
             'text': self.text[:end_text],
             'markup': res,
             'ways': ways
         }
+
 
     @staticmethod
     def get_structure():
         d = {}
         for o in Message.objects.all():
             data = o.parse_text()
-            d[o.id] = {
+            d[o.id] = json.dumps({
                 'messages': list(o.messages.values_list('id', flat=True)),
                 'text': data['text'],
                 'ways': data['ways'],
-                'markup': data['markup']
-            }
+                'markup': data['markup'],
+                'message_type': data['message_type'],
+            }, ensure_ascii=False)
 
         return d
 
@@ -288,8 +336,8 @@ class Poll(CreateUpdateTracker):
     )
 
     class Meta:
-        verbose_name = 'Опрос'
-        verbose_name_plural = 'Опросы'
+        verbose_name = 'Результат опроса'
+        verbose_name_plural = 'Результаты опросов'
         ordering = ['-created_at']
 
     def __str__(self) -> str:
@@ -331,10 +379,11 @@ class Broadcast(CreateTracker):
         return list(set(ids1+ids2))
 
 
-# @receiver(post_delete, sender=Message)
-# @receiver(post_save, sender=Message)
-def my_handler(sender, **kwargs):
+@receiver(post_delete, sender=Message)
+@receiver(post_save, sender=Message)
+def set_states(sender, **kwargs):
     r = redis.from_url(REDIS_URL)
     r.ping()
     d = Message.get_structure()
+    print(d)
     r.mset(d)

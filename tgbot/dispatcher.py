@@ -1,28 +1,27 @@
 """
     Telegram event handlers
 """
-import sys
 import logging
+import sys
 from typing import Dict
 
 import telegram.error
-from telegram import Bot, Update, BotCommand
-from telegram.ext import (
-    Updater, Dispatcher, Filters,
-    CommandHandler, MessageHandler,
-    CallbackQueryHandler,
-)
-
 from dtb.celery import app  # event processing in async mode
-from dtb.settings import TELEGRAM_TOKEN, DEBUG
+from dtb.settings import DEBUG, TELEGRAM_SUPPORT_CHAT, TELEGRAM_TOKEN
+from telegram import Bot, BotCommand, Update
+from telegram.ext import (CallbackQueryHandler, CommandHandler, Dispatcher,
+                          MessageHandler, PollAnswerHandler, Updater)
+from telegram.ext.filters import Filters
 
-from tgbot.handlers.utils import files, error
 from tgbot.handlers.admin import handlers as admin_handlers
-from tgbot.handlers.onboarding import handlers as onboarding_handlers
 from tgbot.handlers.broadcast_message import handlers as broadcast_handlers
-from tgbot.handlers.onboarding.manage_data import SECRET_LEVEL_BUTTON
-from tgbot.handlers.broadcast_message.manage_data import CONFIRM_DECLINE_BROADCAST
+from tgbot.handlers.broadcast_message.manage_data import \
+    CONFIRM_DECLINE_BROADCAST
 from tgbot.handlers.broadcast_message.static_text import broadcast_command
+from tgbot.handlers.chat import handlers as chat
+from tgbot.handlers.onboarding import handlers as onboarding_handlers
+from tgbot.handlers.onboarding.manage_data import SECRET_LEVEL_BUTTON
+from tgbot.handlers.utils import error, files
 
 
 def setup_dispatcher(dp):
@@ -30,30 +29,30 @@ def setup_dispatcher(dp):
     Adding handlers for events from Telegram
     """
     # onboarding
-    dp.add_handler(CommandHandler("start", onboarding_handlers.command_start))
-
-    # stop command
-    # dp.add_handler(CommandHandler("cancel", onboarding_handlers.command_start))
+    dp.add_handler(CommandHandler("start", chat.command_start))
 
     # recive all messages
-    # dp.add_handler(MessageHandler(Filters.all(), broadcast_handlers.broadcast_command_with_message))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, chat.recive_message))
 
     # recive all callback
-    # dp.add_handler(CallbackQueryHandler(broadcast_handlers.broadcast_decision_handler))
+    dp.add_handler(CallbackQueryHandler(chat.recive_calback))
 
     # recive all pools
-
-    # recive answers from admin in support chat
-
-    
+    dp.add_handler(PollAnswerHandler(chat.receive_poll_answer))
 
 
     # admin commands
-    dp.add_handler(CommandHandler("admin", admin_handlers.admin))
-    dp.add_handler(CommandHandler("stats", admin_handlers.stats))
-    dp.add_handler(CommandHandler('export_users', admin_handlers.export_users))
-
-
+    dp.add_handler(CommandHandler("admin", admin_handlers.admin, filters=~Filters.chat(chat_id=int(TELEGRAM_SUPPORT_CHAT))))
+    dp.add_handler(CommandHandler(
+        "stats",
+        admin_handlers.stats,
+        filters=~Filters.chat(chat_id=int(TELEGRAM_SUPPORT_CHAT))
+    ))
+    dp.add_handler(CommandHandler(
+        'export_users',
+        admin_handlers.export_users, 
+        filters=~Filters.chat(chat_id=int(TELEGRAM_SUPPORT_CHAT))
+    ))
 
     # files
     dp.add_handler(MessageHandler(Filters.animation, files.show_file_id))
@@ -61,17 +60,11 @@ def setup_dispatcher(dp):
     # handling errors
     dp.add_error_handler(error.send_stacktrace_to_tg_chat)
 
-    # EXAMPLES FOR HANDLERS
-    # dp.add_handler(MessageHandler(Filters.text, <function_handler>))
-    # dp.add_handler(MessageHandler(
-    #     Filters.document, <function_handler>,
-    # ))
-    # dp.add_handler(CallbackQueryHandler(<function_handler>, pattern="^r\d+_\d+"))
-    # dp.add_handler(MessageHandler(
-    #     Filters.chat(chat_id=int(TELEGRAM_FILESTORAGE_ID)),
-    #     # & Filters.forwarded & (Filters.photo | Filters.video | Filters.animation),
-    #     <function_handler>,
-    # ))
+    # recive answers from admin in support chat
+    dp.add_handler(MessageHandler(
+        Filters.chat(chat_id=int(TELEGRAM_SUPPORT_CHAT)) & Filters.forwarded & (Filters.photo | Filters.video | Filters.animation),
+        chat.forward_from_support,
+    ))
 
     return dp
 
@@ -114,19 +107,11 @@ def set_up_commands(bot_instance: Bot) -> None:
     langs_with_commands: Dict[str, Dict[str, str]] = {
         'en': {
             'start': 'Start django bot 🚀',
-            'stats': 'Statistics of bot 📊',
-            'admin': 'Show admin info ℹ️',
-            'ask_location': 'Send location 📍',
-            'broadcast': 'Broadcast message 📨',
-            'export_users': 'Export users.csv 👥',
+            'support': 'Send message to Pavel 👥',
         },
         'ru': {
             'start': 'Запустить django бота 🚀',
-            'stats': 'Статистика бота 📊',
-            'admin': 'Показать информацию для админов ℹ️',
-            'broadcast': 'Отправить сообщение 📨',
-            'ask_location': 'Отправить локацию 📍',
-            'export_users': 'Экспорт users.csv 👥',
+            'support': 'Написать Павлу 👥',
         }
     }
 
@@ -142,7 +127,8 @@ def set_up_commands(bot_instance: Bot) -> None:
 
 # WARNING: it's better to comment the line below in DEBUG mode.
 # Likely, you'll get a flood limit control error, when restarting bot too often
-set_up_commands(bot)
+# set_up_commands(bot)
 
 n_workers = 0 if DEBUG else 4
-dispatcher = setup_dispatcher(Dispatcher(bot, update_queue=None, workers=n_workers, use_context=True))
+dispatcher = setup_dispatcher(Dispatcher(
+    bot, update_queue=None, workers=n_workers, use_context=True))

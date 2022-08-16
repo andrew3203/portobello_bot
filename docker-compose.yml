@@ -14,9 +14,13 @@ services:
       - ./.env
     ports:
       - "5433:5432"
+
   redis:
     image: redis:alpine
     container_name: dtb_redis
+    volumes:
+      - ./redis_data:/data
+
   web:
     build: .
     container_name: dtb_django
@@ -29,6 +33,7 @@ services:
       - ./.env
     depends_on:
       - db
+
   bot:
     build: .
     container_name: dtb_bot
@@ -37,6 +42,7 @@ services:
       - ./.env
     depends_on:
       - web
+
   celery:
     build: .
     container_name: dtb_celery
@@ -48,6 +54,7 @@ services:
     depends_on:
       - redis
       - web
+      
   celery-beat:
     build: .
     container_name: dtb_beat
