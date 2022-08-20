@@ -1,8 +1,9 @@
 from django.contrib import admin
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, HttpResponseServerError
 from django.shortcuts import render
 
 from dtb.settings import DEBUG
+from tgbot.handlers.utils import utils
 
 from django.contrib.auth.models import Group as gp
 from django.contrib.auth.models import User as DefaultUser
@@ -13,7 +14,7 @@ from django.urls import reverse
 from tgbot import models
 from tgbot import forms
 
-from tgbot.tasks import broadcast_message
+from tgbot.tasks import broadcast_message2
 from tgbot.handlers.broadcast_message.utils import _send_message
 
 admin.site.unregister(gp)
@@ -118,25 +119,28 @@ class UserAdmin(admin.ModelAdmin):
             )
 
     def broadcast(self, request, queryset):
+        # TODO: check the function
         """ Select users via check mark in django-admin panel, then select "Broadcast" to send message"""
-        # user_ids = queryset.values_list('user_id', flat=True).distinct().iterator()
-        user_ids = queryset.values_list('user_id', flat=True)
+        user_ids = queryset.values_list('user_id', flat=True).distinct().iterator()
 
         if 'apply' in request.POST:
-            #broadcast_message_text = request.POST["broadcast_text"]
             f = forms.BroadcastForm(request.POST, request.FILES)
-            if f.is_valid():
-                broadcast = f.save()
+            if f.is_valid(): 
+                broadcast = f.save() 
+            else:
+                return HttpResponseServerError() # TODO
             
-            if DEBUG:  # for test / debug purposes - run in same thread
-                # for user_id in user_ids:
-                #     _send_message(user_id=user_id, text=broadcast_message_text)
-
+            if DEBUG:  
+                for user_id in user_ids:
+                    _, next_state = models.User.get_prev_next_states(user_id, broadcast.name) # TODO
+                    utils.send_broadcast_message(
+                        new_state=next_state,
+                        user_id=user_id,
+                    ) 
                 self.message_user(request, f"Рассылка {len(queryset)} сообщений начата")
 
             else:
-                #broadcast_message.delay(text=broadcast_message_text, user_ids=list(user_ids))
-                pass
+                broadcast_message2.delay(text=broadcast.text, user_ids=list(user_ids), name=broadcast.name) # TODO
                 
             url = reverse(f'admin:{broadcast._meta.app_label}_{broadcast._meta.model_name}_changelist')
             return HttpResponseRedirect(url)

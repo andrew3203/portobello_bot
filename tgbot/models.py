@@ -172,7 +172,7 @@ class User(CreateUpdateTracker):
 
         next_state = json.loads(r.get(next_state_id))
         next_state['user_keywords'] = json.loads(r.get(f'{user_id}_keywords'))
-        r.setex(user_id, timedelta(hours=10), value=next_state_id)
+        r.setex(user_id, timedelta(hours=5), value=next_state_id)
 
         return prev_state, next_state
 

@@ -28,7 +28,7 @@ class BroadcastForm(forms.Form):
     )
     message_type = forms.ChoiceField(
         label='Тип сообщения',
-        choices=MessageType.choices
+        choices=[('SIMPLE_TEXT', 'Простой текст'), ('FLY_BTN', 'Чат. Кнопка'), ('POLL', 'Опрос')]
     )
     files = forms.ModelMultipleChoiceField(
         label='Выбирете существующие файлы для рассылки',

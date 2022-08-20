@@ -167,3 +167,25 @@ def send_registration(user_id, user_code):
 
 def get_user_info(user_id, user_code):
     return {}
+
+def send_broadcast_message(next_state, user_id):
+    next_msg_type = next_state["message_type"]
+
+    markup = next_state["markup"]
+    message_text = get_message_text(next_state["text"], next_state['user_keywords'])
+
+    if next_msg_type == MessageType.POLL:
+        send_poll(text='Опрос', markup=markup)
+        reply_markup = None
+    elif next_msg_type == MessageType.KEYBOORD_BTN:
+        reply_markup = get_keyboard_marckup(markup)
+    elif next_msg_type == MessageType.FLY_BTN:
+        reply_markup = get_inline_marckup(markup)
+    else:
+        reply_markup = None
+
+    _send_message(
+        user_id=user_id,
+        text=message_text,
+        reply_markup=reply_markup
+    )

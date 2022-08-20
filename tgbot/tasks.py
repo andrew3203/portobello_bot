@@ -6,7 +6,8 @@ import time
 from typing import Union, List, Optional, Dict
 
 import telegram
-
+from tgbot.handlers.utils import utils
+from tgbot import models
 from dtb.celery import app
 from celery.utils.log import get_task_logger
 from tgbot.handlers.broadcast_message.utils import _send_message, _from_celery_entities_to_entities, \
@@ -41,6 +42,26 @@ def broadcast_message(
             logger.info(f"Broadcast message was sent to {user_id}")
         except Exception as e:
             logger.error(f"Failed to send message to {user_id}, reason: {e}")
+        time.sleep(max(sleep_between, 0.1))
+
+    logger.info("Broadcast finished!")
+
+@app.task(ignore_result=True)
+def broadcast_message2(
+    user_ids: List[Union[str, int]],
+    text: str,
+    name: str,
+    sleep_between: float = 0.4,
+) -> None:
+    """ It's used to broadcast message to big amount of users """
+    logger.info(f"Going to send message: '{text}' to {len(user_ids)} users")
+
+    for user_id in user_ids:
+        _, next_state = models.User.get_prev_next_states(user_id, name)
+        utils.send_broadcast_message(
+            new_state=next_state,
+            user_id=user_id,
+        )
         time.sleep(max(sleep_between, 0.1))
 
     logger.info("Broadcast finished!")

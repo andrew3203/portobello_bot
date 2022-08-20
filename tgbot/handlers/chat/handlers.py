@@ -18,9 +18,9 @@ def command_start(update: Update, context: CallbackContext) -> None:
     user_balance = utils.get_user_info(u.user_id, u.deep_link)
     u.update_info(user_balance)
     if u.deep_link:
-        utils.send_registration(user_code=u.deep_link, user_id=u.user_id)
         if created:
-            pass # send a queue of invite messages
+            utils.send_registration(user_code=u.deep_link, user_id=u.user_id)
+            # send a queue of invite messages
         else:
             recive_command(update, context)
 
