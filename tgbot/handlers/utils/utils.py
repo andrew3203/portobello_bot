@@ -12,7 +12,7 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
-    Poll,
+    Poll, ParseMode,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
@@ -112,7 +112,10 @@ def send_message(prev_state, next_state, user_id, update):
         )
     else:
         if prev_msg_type == MessageType.FLY_BTN:
-            update.message.edit_message_text(text=message_text)
+            update.message.edit_message_text(
+                text=message_text,
+                parse_mode=ParseMode.HTML
+            )
         else:
             _send_message(
                 user_id=user_id,
@@ -145,15 +148,19 @@ def edit_message(next_state, user_id, update):
         markup = get_inline_marckup(markup)
         update.callback_query.edit_message_text(
             text=message_text,
-            reply_markup=markup
+            reply_markup=markup,
+            parse_mode=ParseMode.HTML
         )
 
     else:
-        update.callback_query.edit_message_text(text=message_text)
+        update.callback_query.edit_message_text(
+            text=message_text,
+            parse_mode=ParseMode.HTML
+        )
 
 
 def send_registration(user_id, user_code):
     pass
 
 def get_user_info(user_id, user_code):
-    pass
+    return {}

@@ -1,4 +1,4 @@
-# general
+# General
 pytz
 requests
 python-dotenv
@@ -32,11 +32,11 @@ python-telegram-bot
 #monitoring
 #sentry-sdk
 
-# file control
+# File control
 pillow
 django-cleanup
 
-# prepocessing
+# Prepocessing
 cyrtranslit
 emoji
 flashtext
