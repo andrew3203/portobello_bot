@@ -5,7 +5,7 @@ from tgbot.models import User, Message, Poll, MessageType
 import datetime
 import logging
 
-
+from flashtext import KeywordProcessor
 from django.utils import timezone
 from tgbot.handlers.broadcast_message.utils import _send_message
 from telegram import (
@@ -48,7 +48,10 @@ def get_keyboard_marckup(markup):
     return ReplyKeyboardMarkup(keyboard)
 
 
-def get_message_text(text):
+def get_message_text(text, user_keywords):
+    keyword_processor = KeywordProcessor()
+    keyword_processor.add_keywords_from_dict(user_keywords)
+    text = keyword_processor.replace_keywords(text)
     return text
 
 
@@ -73,16 +76,12 @@ def send_poll(context, update, text, markup):
     context.bot_data.update(payload)
 
 
-def send_registration(user_id, user_code):
-    pass
-
-
 def send_message(prev_state, next_state, user_id, update):
     prev_msg_type = prev_state["message_type"] if prev_state else None
     next_msg_type = next_state["message_type"]
 
     markup = next_state["markup"]
-    message_text = get_message_text(next_state["text"])
+    message_text = get_message_text(next_state["text"], next_state['user_keywords'])
 
     if next_msg_type == MessageType.POLL:
 
@@ -122,7 +121,7 @@ def send_message(prev_state, next_state, user_id, update):
 
 def edit_message(next_state, user_id, update):
     markup = next_state['markup']
-    message_text = get_message_text(next_state['text'])
+    message_text = get_message_text(next_state['text'], next_state['user_keywords'])
 
     next_msg_type = next_state['message_type']
 
@@ -135,8 +134,10 @@ def edit_message(next_state, user_id, update):
 
     elif next_msg_type == MessageType.KEYBOORD_BTN:
         markup = get_keyboard_marckup(markup)
-        update.callback_query.edit_message_text(
-            text=message_text, 
+        update.callback_query.delete_message()
+        _send_message(
+            user_id=user_id,
+            text=message_text,
             reply_markup=markup,
         )
 
@@ -149,3 +150,10 @@ def edit_message(next_state, user_id, update):
 
     else:
         update.callback_query.edit_message_text(text=message_text)
+
+
+def send_registration(user_id, user_code):
+    pass
+
+def get_user_info(user_id, user_code):
+    pass

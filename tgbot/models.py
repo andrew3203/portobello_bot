@@ -2,18 +2,19 @@ from __future__ import annotations
 from email import message
 from random import randint
 import cyrtranslit
+import emoji
 
 from typing import Union, Optional, Tuple
 import re
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.db import models
 from django.db.models import QuerySet, Manager
 from telegram import Update, Video
 from telegram.ext import CallbackContext
 
-from dtb.settings import DEBUG
+from dtb.settings import DEBUG, MSG_PRIMARY_NAMES
 from tgbot.handlers.utils.info import extract_user_data_from_update
 from utils.models import CreateUpdateTracker, CreateTracker, nb, GetOrNoneManager
 
@@ -63,6 +64,31 @@ class User(CreateUpdateTracker):
         default=False
     )
 
+    birth_date = models.DateField(
+        'День Рождения',
+        blank=True
+    )
+    all_time_cashback = models.IntegerField(
+        'Кешбек за все время',
+        blank=True
+    )
+    free_gold_tickets = models.IntegerField(
+        'Золотые билеты',
+        blank=True
+    )
+    free_cashback = models.IntegerField(
+        'Бесплатный Кешбек',
+        blank=True
+    )
+    all_time_gold_tickets = models.IntegerField(
+        'Золотые билеты за все время',
+        blank=True
+    )
+    rating_place = models.IntegerField(
+        'Рейтинг',
+        blank=True
+    )
+
     objects = GetOrNoneManager()  # user = User.objects.get_or_none(user_id=<some_id>)
     admins = AdminUserManager()  # User.admins.all()
 
@@ -74,6 +100,51 @@ class User(CreateUpdateTracker):
     def __str__(self):
         return f'@{self.username}' if self.username is not None else f'{self.user_id}'
     
+    def set_registration(self):
+         r = redis.from_url(REDIS_URL)
+         r.set(f'{self.user_id}_registration', value=self.deep_link)
+    
+    @staticmethod
+    def is_registered(user_id):
+        r = redis.from_url(REDIS_URL, decode_responses=True)
+        return r.exists(f'{user_id}_registration')
+   
+
+    def get_keywords(self):
+        return {
+            self.all_time_cashback: ['all_time_cashback'],
+            self.all_time_gold_tickets: ['all_time_gold_tickets'],
+            self.free_cashback: ['free_cashback'],
+            self.free_gold_tickets: ['free_gold_tickets'],
+            self.rating_place: ['rating_place'],
+            self.birth_date.strftime("%y.%m.%d"): ['birth_date'],
+            self.last_name: ['last_name'],
+            self.first_name: ['first_name'],
+            self.username: ['username'],
+        }
+
+    def update_info(self, new_data):
+        self.all_time_cashback = new_data.get(
+            'all_time_cashback', self.all_time_cashback)
+        self.all_time_gold_tickets = new_data.get(
+            'all_time_gold_tickets', self.all_time_gold_tickets)
+        self.free_cashback = new_data.get('free_cashback', self.free_cashback)
+        self.free_gold_tickets = new_data.get(
+            'free_gold_tickets', self.free_gold_tickets)
+        self.rating_place = new_data.get('rating_place', self.rating_place)
+        try:
+            birth_date = new_data['birth_date']
+            self.birth_date = datetime.fromisoformat(
+                birth_date, "%y-%m-%d")  # TODO
+        except Exception as e:
+            print(e)
+        self.save()
+
+    def set_keywords(self):
+        r = redis.from_url(REDIS_URL)
+        r.set(f'{self.user_id}_keywords', value=json.dumps(self.get_keywords(), ensure_ascii=False))
+        r.set(f'{self.user_id}_registration', value=self.deep_link)
+
     @staticmethod
     def get_state(user_id):
         r = redis.from_url(REDIS_URL, decode_responses=True)
@@ -83,28 +154,27 @@ class User(CreateUpdateTracker):
             return json.loads(r.get(message_id))
 
         return None
-    
+
     @staticmethod
-    def get_prev_next_states(user_id, msg_text):
+    def get_prev_next_states(user_id, msg_text_key):
         r = redis.from_url(REDIS_URL, decode_responses=True)
 
-        if r.exists(user_id):
+        if r.exists(user_id) and r.exists(f'{user_id}_registration'):
             message_id = json.loads(r.get(user_id))
             prev_state = json.loads(r.get(message_id))
-            next_state_id = prev_state['ways'].get(
-                msg_text, 
-                Message.objects.filter(name='Ошибка состояния').first().id
-            )
+            next_state_id = prev_state['ways'].get(msg_text_key, r.get('error'))
+        elif r.exists(user_id):
+            prev_state = None
+            next_state_id = r.get('registration_error')
         else:
             prev_state = None
-            next_state_id = Message.objects.filter(name='Старт').first().id
+            next_state_id = r.get('start')
 
-        raw_next_sate = r.get(next_state_id)
-        next_state = json.loads(raw_next_sate)
+        next_state = json.loads(r.get(next_state_id))
+        next_state['user_keywords'] = json.loads(r.get(f'{user_id}_keywords'))
         r.setex(user_id, timedelta(hours=10), value=next_state_id)
-        
-        return prev_state, next_state
 
+        return prev_state, next_state
 
     @staticmethod
     def set_state(user_id, message_id):
@@ -237,12 +307,6 @@ class Message(CreateUpdateTracker):
         verbose_name='Группы пользователей',
         help_text='Группы пользователей, для которых доступно данное сообщение. Если группа не выбрана, сообщение доступно всем пользователям.'
     )
-    messages = models.ManyToManyField(
-        'self',
-        blank=True,
-        verbose_name='Сообщения',
-        help_text='Сообщения, которые могут быть показаны после данного сообщения. Название кнопки должно совпадать с названием сообщения, к которому оно ведет. Кол-во таких сообщений должно быть равно кол-ву кнопок в тексте этого сообщения.'
-    )
     files = models.ManyToManyField(
         File,
         blank=True,
@@ -256,13 +320,18 @@ class Message(CreateUpdateTracker):
 
     def __str__(self) -> str:
         return f'{self.name}'
-    
-    def _gen_msg_dict(self):
-        messages = self.messages.values_list('name', 'id')
-        messages = [(k.lower().replace(' ', ''), v) for k, v in messages]
-        return dict(messages)
 
-    def parse_text(self) -> dict:
+    @staticmethod
+    def encode_msg_name(name):
+        return emoji.demojize(name.lower()).replace(' ', '')
+
+    def _gen_msg_dict(self):
+        messages = {}
+        for msg_name, msg_id in Message.objects.all().values_list('name', 'id'):
+            messages[self.encode_msg_name(msg_name)] = msg_id
+        return messages
+
+    def parse_message(self) -> dict:
         msg_dict = self._gen_msg_dict()
         regex = r"(\[[^\[\]]+\]\([^\(\)]+\)\s*\n)|(\[[^\[\]]+\]\s*\n)|(\[[^\[\]]+\]\([^\(\)]+\))|(\[[^\[\]]+\])"
         # group 1 - элемент кнопки с сылкой (с \n)
@@ -272,9 +341,8 @@ class Message(CreateUpdateTracker):
         # group 4 - обычный элемент кнопки опроса (без \n)
         self.text = re.sub('\\r', '', self.text)
         matches = re.finditer(regex, self.text, re.MULTILINE)
-        message_ids = self.messages.values_list('id', flat=True)
 
-        res = [[]]
+        markup = [[]]
         ways = {}
         end_text = 100000
         for match in matches:
@@ -289,37 +357,63 @@ class Message(CreateUpdateTracker):
                 btn = re.sub('(\]\s*)|([\[\]\n])', '', group)
                 link = None
 
-            res[-1].append((btn, link))
+            markup[-1].append((btn, link))
             if groupNum in (1, 2):
-                res.append([])
+                markup.append([])
 
             if groupNum in (2, 4):
-                btn_name = btn.lower().replace(' ', '')
+                btn_name = self.encode_msg_name(btn_name)
                 ways[btn_name] = msg_dict[btn_name]
-
 
         return {
             'message_type': self.message_type,
             'text': self.text[:end_text],
-            'markup': res,
+            'markup': markup,
             'ways': ways
         }
+    
+    def make_cash(self):
+        common_ways = {}
+        for k, msg_name in MSG_PRIMARY_NAMES:
+            m = Message.objects.filter(name=msg_name).first()
+            common_ways[k] = m.id if m else 1
 
+        cash = {}
+        cash['start'] = common_ways['start']
+        cash['error'] = common_ways.pop('error')
+
+        data = self.parse_message()
+        cash[m.id] = json.dumps({
+            'text': data['text'],
+            'ways': {**common_ways, **data['ways']},
+            'markup': data['markup'],
+            'message_type': data['message_type'],
+        }, ensure_ascii=False)
+
+        return cash
 
     @staticmethod
-    def get_structure():
-        d = {}
-        for o in Message.objects.all():
-            data = o.parse_text()
-            d[o.id] = json.dumps({
-                'messages': list(o.messages.values_list('id', flat=True)),
+    def make_cashes():
+        common_ways = {}
+        for k, msg_name in MSG_PRIMARY_NAMES:
+            m = Message.objects.filter(name=msg_name).first()
+            common_ways[k] = m.id if m else 1
+
+        cash = {}
+        cash['start'] = common_ways['start']
+        cash['error'] = common_ways.pop('error')
+        cash['registration_error'] = common_ways.pop('registration_error')
+
+        for m in Message.objects.all():
+            data = m.parse_message()
+            cash[m.id] = json.dumps({
                 'text': data['text'],
-                'ways': data['ways'],
+                'ways': {**common_ways, **data['ways']},
                 'markup': data['markup'],
                 'message_type': data['message_type'],
             }, ensure_ascii=False)
 
-        return d
+        return cash
 
 
 class Poll(CreateUpdateTracker):
@@ -379,11 +473,24 @@ class Broadcast(CreateTracker):
         return list(set(ids1+ids2))
 
 
-@receiver(post_delete, sender=Message)
 @receiver(post_save, sender=Message)
-def set_states(sender, **kwargs):
+def set_message_states(sender, **kwargs):
     r = redis.from_url(REDIS_URL)
-    r.ping()
-    d = Message.get_structure()
-    print(d)
-    r.mset(d)
+    cash = sender.make_cash()
+    r.mset(cash)
+ 
+@receiver(post_delete, sender=Message)
+def remove_message_states(sender, **kwargs):
+    r = redis.from_url(REDIS_URL)
+    r.remove(sender.id) # TODO: check remove
+
+@receiver(post_save, sender=User)
+def set_user_keywords(sender, **kwargs):
+    sender.set_keywords()
+
+
+@receiver(post_delete, sender=User)
+def remove_user_states(sender, **kwargs):
+    r = redis.from_url(REDIS_URL)
+    k = f'{sender.user_if}__keywords'
+    r.remove(k) # TODO: check remove

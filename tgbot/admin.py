@@ -67,9 +67,10 @@ class UserAdmin(admin.ModelAdmin):
     list_display = [
         'user_id', 'username', 'first_name', 'last_name',
         'language_code', 'deep_link',
-        'created_at', 'updated_at', "is_blocked_bot",
+        'created_at', 'updated_at', 'rating_place'
+        'all_time_cashback', 'free_gold_tickets', 'free_cashback', 'all_time_gold_tickets'
     ]
-    list_filter = ["is_blocked_bot", ]
+    list_filter = ["is_blocked_bot", 'is_admin']
     search_fields = ('username', 'user_id')
     fieldsets = (
         ('Основное', {
@@ -79,9 +80,16 @@ class UserAdmin(admin.ModelAdmin):
                 ('first_name', 'last_name'),
             ),
         }),
+        ('О пользователе (из crm)', {
+            'fields': (
+                ('deep_link',)
+                ("rating_place",),
+                ('all_time_cashback', 'free_cashback'),
+                ('free_gold_tickets', 'all_time_gold_tickets'),
+            ),
+        }),
         ('Дополнительная информация', {
             'fields': (
-                ('deep_link',),
                 ("is_blocked_bot",),
                 ('is_admin',),
             ),
