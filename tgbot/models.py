@@ -134,8 +134,8 @@ class User(CreateUpdateTracker):
         self.rating_place = new_data.get('rating_place', self.rating_place)
         try:
             birth_date = new_data['birth_date']
-            self.birth_date = datetime.fromisoformat(
-                birth_date, "%y-%m-%d")  # TODO
+            self.birth_date = datetime.strptime(
+                birth_date, "%Y-%m-%d") 
         except Exception as e:
             print(e)
         self.save()
@@ -482,7 +482,7 @@ def set_message_states(sender, **kwargs):
 @receiver(post_delete, sender=Message)
 def remove_message_states(sender, **kwargs):
     r = redis.from_url(REDIS_URL)
-    r.remove(sender.id) # TODO: check remove
+    r.delete(sender.id) # TODO: check remove
 
 @receiver(post_save, sender=User)
 def set_user_keywords(sender, **kwargs):
@@ -493,4 +493,4 @@ def set_user_keywords(sender, **kwargs):
 def remove_user_states(sender, **kwargs):
     r = redis.from_url(REDIS_URL)
     k = f'{sender.user_if}__keywords'
-    r.remove(k) # TODO: check remove
+    r.delete(k) # TODO: check remove

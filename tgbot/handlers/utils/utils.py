@@ -129,7 +129,10 @@ def edit_message(next_state, user_id, update):
     next_msg_type = next_state['message_type']
 
     if next_msg_type == MessageType.POLL:
-        update.callback_query.edit_message_text(text=message_text)
+        update.callback_query.edit_message_text(
+            text=message_text,
+            parse_mode=ParseMode.HTML
+        )
         send_poll(
             text='Опрос',
             markup=markup

@@ -39,7 +39,7 @@ def command_balance(update: Update, context: CallbackContext) -> None:
 
 def recive_command(update: Update, context: CallbackContext) -> None:
     user_id = extract_user_data_from_update(update)["user_id"]
-    msg_text = update.message.text.replace('//', '') # TODO: проверить что текст без /
+    msg_text = update.message.text.replace('//', '') 
     print(f'recive command {msg_text} from {user_id}')
     prev_state, next_state = User.get_prev_next_states(user_id, msg_text)
 
@@ -80,7 +80,6 @@ def recive_calback(update: Update, context: CallbackContext) -> None:
     print(prev_state)
     print(next_state)
 
-    # TODO: adit msg on FLY BTN
     utils.edit_message(
         next_state=next_state,
         user_id=user_id,
