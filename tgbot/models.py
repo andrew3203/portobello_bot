@@ -3,6 +3,7 @@ from email import message
 from random import randint
 import cyrtranslit
 import emoji
+from django.db.models import F
 
 from typing import Union, Optional, Tuple
 import re
@@ -66,27 +67,34 @@ class User(CreateUpdateTracker):
 
     birth_date = models.DateField(
         'День Рождения',
-        blank=True
+        blank=True,
+        null=True,
+        default=None
     )
     all_time_cashback = models.IntegerField(
         'Кешбек за все время',
-        blank=True
+        blank=True,
+        default=0
     )
     free_gold_tickets = models.IntegerField(
         'Золотые билеты',
-        blank=True
+        blank=True,
+        default=0
     )
     free_cashback = models.IntegerField(
         'Бесплатный Кешбек',
-        blank=True
+        blank=True,
+        default=0
     )
     all_time_gold_tickets = models.IntegerField(
         'Золотые билеты за все время',
-        blank=True
+        blank=True,
+        default=0
     )
     rating_place = models.IntegerField(
         'Рейтинг',
-        blank=True
+        blank=True,
+        default=0
     )
 
     objects = GetOrNoneManager()  # user = User.objects.get_or_none(user_id=<some_id>)
@@ -112,38 +120,35 @@ class User(CreateUpdateTracker):
 
     def get_keywords(self):
         return {
-            self.all_time_cashback: ['all_time_cashback'],
-            self.all_time_gold_tickets: ['all_time_gold_tickets'],
-            self.free_cashback: ['free_cashback'],
-            self.free_gold_tickets: ['free_gold_tickets'],
-            self.rating_place: ['rating_place'],
-            self.birth_date.strftime("%y.%m.%d"): ['birth_date'],
+            self.all_time_cashback if self.all_time_cashback else 0: ['all_time_cashback'],
+            self.all_time_gold_tickets if self.all_time_gold_tickets else 0: ['all_time_gold_tickets'],
+            self.free_cashback if self.free_cashback else 0: ['free_cashback'],
+            self.free_gold_tickets if self.free_gold_tickets else 0: ['free_gold_tickets'],
+            self.rating_place if self.rating_place else 0: ['rating_place'],
+            self.birth_date.strftime("%y.%m.%d") if self.birth_date else '2000.02.02': ['birth_date'],
             self.last_name: ['last_name'],
             self.first_name: ['first_name'],
             self.username: ['username'],
         }
 
     def update_info(self, new_data):
-        self.all_time_cashback = new_data.get(
-            'all_time_cashback', self.all_time_cashback)
-        self.all_time_gold_tickets = new_data.get(
-            'all_time_gold_tickets', self.all_time_gold_tickets)
+        self.all_time_cashback = new_data.get('all_time_cashback', self.all_time_cashback)
+        self.all_time_gold_tickets = new_data.get('all_time_gold_tickets', self.all_time_gold_tickets)
         self.free_cashback = new_data.get('free_cashback', self.free_cashback)
-        self.free_gold_tickets = new_data.get(
-            'free_gold_tickets', self.free_gold_tickets)
+        self.free_gold_tickets = new_data.get('free_gold_tickets', self.free_gold_tickets)
         self.rating_place = new_data.get('rating_place', self.rating_place)
-        try:
-            birth_date = new_data['birth_date']
-            self.birth_date = datetime.strptime(
-                birth_date, "%Y-%m-%d") 
-        except Exception as e:
-            print(e)
+
+        birth_date = new_data.get('birth_date', None)
+        if birth_date:
+            self.birth_date = datetime.strptime(birth_date, "%Y-%m-%d") 
+
         self.save()
 
     def set_keywords(self):
         r = redis.from_url(REDIS_URL)
         r.set(f'{self.user_id}_keywords', value=json.dumps(self.get_keywords(), ensure_ascii=False))
-        r.set(f'{self.user_id}_registration', value=self.deep_link)
+        if self.deep_link:
+            r.set(f'{self.user_id}_registration', value=self.deep_link)
 
     @staticmethod
     def get_state(user_id):
@@ -158,19 +163,30 @@ class User(CreateUpdateTracker):
     @staticmethod
     def get_prev_next_states(user_id, msg_text_key):
         r = redis.from_url(REDIS_URL, decode_responses=True)
+        msg_text_key = Message.encode_msg_name(msg_text_key)
 
         if r.exists(user_id) and r.exists(f'{user_id}_registration'):
             message_id = json.loads(r.get(user_id))
             prev_state = json.loads(r.get(message_id))
             next_state_id = prev_state['ways'].get(msg_text_key, r.get('error'))
+            print('r.exists(user_id)', msg_text_key, next_state_id)
+            print(prev_state['ways'])
+
         elif r.exists(user_id):
             prev_state = None
             next_state_id = r.get('registration_error')
+            print('registration_error', msg_text_key, next_state_id)
+            print(prev_state['ways'])
+
         else:
             prev_state = None
             next_state_id = r.get('start')
+            print('start', msg_text_key, next_state_id)
+            print(prev_state['ways'])
 
-        next_state = json.loads(r.get(next_state_id))
+        raw = r.get(next_state_id)
+        Message.objects.filter(id=next_state_id).update(clicks=F('clicks') + 1)
+        next_state = json.loads(raw)
         next_state['user_keywords'] = json.loads(r.get(f'{user_id}_keywords'))
         r.setex(user_id, timedelta(hours=5), value=next_state_id)
 
@@ -299,6 +315,11 @@ class Message(CreateUpdateTracker):
         default=0,
         blank=True
     )
+    unic_clicks = models.IntegerField(
+        'Кол-во уникальных кликов',
+        default=0,
+        blank=True
+    )
     group = models.ForeignKey(
         Group,
         null=True,
@@ -323,7 +344,8 @@ class Message(CreateUpdateTracker):
 
     @staticmethod
     def encode_msg_name(name):
-        return emoji.demojize(name.lower()).replace(' ', '')
+        name = emoji.replace_emoji(name, replace='')
+        return name.lower().replace(' ', '')
 
     def _gen_msg_dict(self):
         messages = {}
@@ -362,8 +384,8 @@ class Message(CreateUpdateTracker):
                 markup.append([])
 
             if groupNum in (2, 4):
-                btn_name = self.encode_msg_name(btn_name)
-                ways[btn_name] = msg_dict[btn_name]
+                btn_query_name = self.encode_msg_name(btn)
+                ways[btn_query_name] = msg_dict[btn_query_name]
 
         return {
             'message_type': self.message_type,
@@ -381,12 +403,13 @@ class Message(CreateUpdateTracker):
         cash = {}
         cash['start'] = common_ways['start']
         cash['error'] = common_ways.pop('error')
+        cash['registration_error'] = common_ways.pop('registration_error')
 
         data = self.parse_message()
-        cash[m.id] = json.dumps({
+        cash[self.id] = json.dumps({
             'text': data['text'],
             'ways': {**common_ways, **data['ways']},
-            'markup': data['markup'],
+            'markup': data['markup'] if data['markup'] else '',
             'message_type': data['message_type'],
         }, ensure_ascii=False)
 
@@ -474,23 +497,27 @@ class Broadcast(CreateTracker):
 
 
 @receiver(post_save, sender=Message)
-def set_message_states(sender, **kwargs):
+def set_message_states(sender, instance, **kwargs):
     r = redis.from_url(REDIS_URL)
-    cash = sender.make_cash()
+    cash = instance.make_cash()
     r.mset(cash)
+    print('set_message_states')
  
 @receiver(post_delete, sender=Message)
-def remove_message_states(sender, **kwargs):
+def remove_message_states(sender, instance, **kwargs):
     r = redis.from_url(REDIS_URL)
-    r.delete(sender.id) # TODO: check remove
+    r.delete(instance.id) # TODO: check remove
+    print('remove_message_states')
 
 @receiver(post_save, sender=User)
-def set_user_keywords(sender, **kwargs):
-    sender.set_keywords()
+def set_user_keywords(sender, instance, **kwargs):
+    instance.set_keywords()
+    print('set_user_keywords')
 
 
 @receiver(post_delete, sender=User)
-def remove_user_states(sender, **kwargs):
+def remove_user_states(sender, instance, **kwargs):
     r = redis.from_url(REDIS_URL)
-    k = f'{sender.user_if}__keywords'
+    k = f'{instance.user_id}__keywords'
     r.delete(k) # TODO: check remove
+    print('remove_user_states')

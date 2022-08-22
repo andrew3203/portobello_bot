@@ -66,8 +66,8 @@ def _send_message(
     except telegram.error.Unauthorized:
         print(f"Can't send message to {user_id}. Reason: Bot was stopped.")
         User.objects.filter(user_id=user_id).update(is_blocked_bot=True)
-        success = False
+        return None
     else:
-        success = True
         User.objects.filter(user_id=user_id).update(is_blocked_bot=False)
-    return success
+        return m.message_id
+   

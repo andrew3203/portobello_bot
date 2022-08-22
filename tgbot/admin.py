@@ -68,7 +68,7 @@ class UserAdmin(admin.ModelAdmin):
     list_display = [
         'user_id', 'username', 'first_name', 'last_name',
         'language_code', 'deep_link',
-        'created_at', 'updated_at', 'rating_place'
+        'created_at', 'updated_at', 'rating_place',
         'all_time_cashback', 'free_gold_tickets', 'free_cashback', 'all_time_gold_tickets'
     ]
     list_filter = ["is_blocked_bot", 'is_admin']
@@ -83,7 +83,7 @@ class UserAdmin(admin.ModelAdmin):
         }),
         ('О пользователе (из crm)', {
             'fields': (
-                ('deep_link',)
+                ('deep_link',),
                 ("rating_place",),
                 ('all_time_cashback', 'free_cashback'),
                 ('free_gold_tickets', 'all_time_gold_tickets'),
@@ -163,19 +163,18 @@ class MessageAdmin(admin.ModelAdmin):
         'name', 'pk', 'message_type', 'clicks', 'group', 'updated_at', 'created_at'
     ]
     list_filter = ["message_type", "group"]
-    search_fields = ('name', 'user_id')
+    search_fields = ('name', )
     fieldsets = (
         ('Основное', {
             'fields': (
                 ("name", 'pk'),
                 ('text',),
                 ('message_type',),
-                ('clicks',)
+                ('clicks', 'unic_clicks')
             ),
         }),
         ('Ограничения', {
             'fields': (
-                ('messages',),
                 ("group",),
 
             ),
@@ -193,7 +192,7 @@ class MessageAdmin(admin.ModelAdmin):
         }),
     )
     readonly_fields = ('created_at', 'updated_at', 'pk')
-    filter_horizontal = ('messages', 'files')
+    filter_horizontal = ('files',)
 
 
 @admin.register(models.Group)

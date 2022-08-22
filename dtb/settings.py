@@ -180,7 +180,7 @@ MSG_PRIMARY_NAMES = [
     ('stock', 'Акции Portobello'),
     ('loyalty_program', 'Программа лояльности'),
     ('support', 'Написать Павлу'),
-    ('error', 'Ошибка')
+    ('error', 'Ошибка'),
     ('registration_error', 'Ошибка регистрации')
 ]
 

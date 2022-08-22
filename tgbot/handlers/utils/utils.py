@@ -25,14 +25,12 @@ def get_inline_marckup(markup):
         keyboard.append([])
         for col in row:
             if len(col) == 2 and col[1]:
-                print(f'get_inline_marckup: URL BTN: {col[0]} {col[1]}')
                 btn = InlineKeyboardButton(text=col[0], url=col[1])
             else:
-                print(f'get_inline_marckup: callback BTN: {col[0]} {col[0].lower().replace(" ", "")}')
                 btn = InlineKeyboardButton(
                     text=col[0], callback_data=col[0].lower().replace(' ', ''))
             keyboard[-1].append(btn)
-    print(f'get_inline_marckup: result {keyboard}')
+
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -41,10 +39,9 @@ def get_keyboard_marckup(markup):
     for row in markup:
         keyboard.append([])
         for col in row:
-            print(f'get_keyboard_marckup: text BTN: {col[0]}')
             btn = KeyboardButton(text=col[0])
             keyboard[-1].append(btn)
-    print(f'get_keyboard_marckup: result {keyboard}')
+
     return ReplyKeyboardMarkup(keyboard)
 
 
@@ -76,7 +73,7 @@ def send_poll(context, update, text, markup):
     context.bot_data.update(payload)
 
 
-def send_message(prev_state, next_state, user_id, update):
+def send_message(prev_state, next_state, user_id, context, prev_message_id):
     prev_msg_type = prev_state["message_type"] if prev_state else None
     next_msg_type = next_state["message_type"]
 
@@ -84,10 +81,11 @@ def send_message(prev_state, next_state, user_id, update):
     message_text = get_message_text(next_state["text"], next_state['user_keywords'])
 
     if next_msg_type == MessageType.POLL:
-
+        
+        message_id = None
         if prev_msg_type == MessageType.KEYBOORD_BTN:
             reply_markup = ReplyKeyboardRemove() if prev_msg_type == MessageType.KEYBOORD_BTN else None
-            _send_message(
+            message_id = _send_message(
                 user_id=user_id,
                 text=message_text,
                 reply_markup=reply_markup
@@ -98,29 +96,33 @@ def send_message(prev_state, next_state, user_id, update):
         )
     elif next_msg_type == MessageType.KEYBOORD_BTN:
         markup = get_keyboard_marckup(markup)
-        _send_message(
+        message_id = _send_message(
             user_id=user_id,
             text=message_text,
             reply_markup=markup,
         )
     elif next_msg_type == MessageType.FLY_BTN:
         markup = get_inline_marckup(markup)
-        _send_message(
+        message_id = _send_message(
             user_id=user_id,
             text=message_text,
             reply_markup=markup,
         )
     else:
         if prev_msg_type == MessageType.FLY_BTN:
-            update.message.edit_message_text(
+            context.bot.edit_message_text(
+                chat_id=user_id, 
+                message_id=prev_message_id,
                 text=message_text,
                 parse_mode=ParseMode.HTML
             )
+            message_id = prev_message_id
         else:
-            _send_message(
+            message_id = _send_message(
                 user_id=user_id,
                 text=message_text
             )
+    return message_id
 
 def edit_message(next_state, user_id, update):
     markup = next_state['markup']
@@ -129,7 +131,7 @@ def edit_message(next_state, user_id, update):
     next_msg_type = next_state['message_type']
 
     if next_msg_type == MessageType.POLL:
-        update.callback_query.edit_message_text(
+        m = update.callback_query.edit_message_text(
             text=message_text,
             parse_mode=ParseMode.HTML
         )
@@ -137,11 +139,12 @@ def edit_message(next_state, user_id, update):
             text='Опрос',
             markup=markup
         )
+        message_id = m.message_id
 
     elif next_msg_type == MessageType.KEYBOORD_BTN:
         markup = get_keyboard_marckup(markup)
         update.callback_query.delete_message()
-        _send_message(
+        message_id = _send_message(
             user_id=user_id,
             text=message_text,
             reply_markup=markup,
@@ -149,17 +152,21 @@ def edit_message(next_state, user_id, update):
 
     elif next_msg_type == MessageType.FLY_BTN:
         markup = get_inline_marckup(markup)
-        update.callback_query.edit_message_text(
+        m = update.callback_query.edit_message_text(
             text=message_text,
             reply_markup=markup,
             parse_mode=ParseMode.HTML
         )
+        message_id = m.message_id
 
     else:
-        update.callback_query.edit_message_text(
+        m = update.callback_query.edit_message_text(
             text=message_text,
             parse_mode=ParseMode.HTML
         )
+        message_id = m.message_id
+        
+    return message_id
 
 
 def send_registration(user_id, user_code):
