@@ -20,7 +20,7 @@ def command_start(update: Update, context: CallbackContext) -> None:
     if u.deep_link:
         if created:
             utils.send_registration(user_code=u.deep_link, user_id=u.user_id)
-            # send a queue of invite messages
+            update.message.reply_text('Вы успешно зарегистрированы в программе лояльности!')
         else:
             recive_command(update, context)
 

@@ -177,10 +177,16 @@ def edit_message(next_state, user_id, update):
 
 
 def send_registration(user_id, user_code):
-    pass
+    requests.post(
+        url='https://crm.portobello.ru/api/telegram/sign-up', 
+        data = {'tg_user_id': user_id, 'bd_user_id': user_code }
+    )
 
 def get_user_info(user_id, user_code):
-    return {}
+    resp = requests.get(
+        url=f'https://crm.portobello.ru/api/telegram/get-user-info?id={user_id}'
+    )
+    return resp.json()
 
 def send_broadcast_message(next_state, user_id):
     next_msg_type = next_state["message_type"]
