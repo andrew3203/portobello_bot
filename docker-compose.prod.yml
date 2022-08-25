@@ -4,6 +4,7 @@ services:
   web:
     container_name: web
     build:
+      context: ./
       dockerfile: Dockerfile.prod
     command: gunicorn dtb.wsgi:application --bind :8021
     volumes:
