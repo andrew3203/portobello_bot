@@ -119,13 +119,19 @@ class User(CreateUpdateTracker):
    
 
     def get_keywords(self):
+        all_time_cashback = self.all_time_cashback if self.all_time_cashback else 0
+        all_time_gold_tickets = self.all_time_gold_tickets if self.all_time_gold_tickets else 0
+        free_cashback = self.free_cashback if self.free_cashback else 0
+        free_gold_tickets = self.free_gold_tickets if self.free_gold_tickets else 0
+        rating_place = self.rating_place if self.rating_place else 0
+        birth_date = self.birth_date.strftime("%y.%m.%d") if self.birth_date else '2000.02.02'
         return {
-            self.all_time_cashback if self.all_time_cashback else 0: ['all_time_cashback'],
-            self.all_time_gold_tickets if self.all_time_gold_tickets else 0: ['all_time_gold_tickets'],
-            self.free_cashback if self.free_cashback else 0: ['free_cashback'],
-            self.free_gold_tickets if self.free_gold_tickets else 0: ['free_gold_tickets'],
-            self.rating_place if self.rating_place else 0: ['rating_place'],
-            self.birth_date.strftime("%y.%m.%d") if self.birth_date else '2000.02.02': ['birth_date'],
+            f'{all_time_cashback}': ['all_time_cashback'],
+            f'{all_time_gold_tickets}': ['all_time_gold_tickets'],
+            f'{free_cashback}': ['free_cashback'],
+            f'{free_gold_tickets}': ['free_gold_tickets'],
+            f'{rating_place}': ['rating_place'],
+            f'{birth_date}': ['birth_date'],
             self.last_name: ['last_name'],
             self.first_name: ['first_name'],
             self.username: ['username'],
