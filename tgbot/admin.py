@@ -125,10 +125,12 @@ class UserAdmin(admin.ModelAdmin):
 
         if 'apply' in request.POST:
             f = forms.BroadcastForm(request.POST, request.FILES)
+            print(f)
             if f.is_valid(): 
                 broadcast = f.save() 
+                print(broadcast)
             else:
-                return HttpResponseServerError() # TODO
+                return HttpResponseServerError()
             
             if DEBUG:  
                 for user_id in user_ids:
@@ -141,6 +143,7 @@ class UserAdmin(admin.ModelAdmin):
 
             else:
                 broadcast_message2.delay(text=broadcast.text, user_ids=list(user_ids), name=broadcast.name) # TODO
+                self.message_user(request, f"Рассылка {len(queryset)} сообщений начата")
                 
             url = reverse(f'admin:{broadcast._meta.app_label}_{broadcast._meta.model_name}_changelist')
             return HttpResponseRedirect(url)

@@ -7,7 +7,7 @@ import logging
 
 from flashtext import KeywordProcessor
 from django.utils import timezone
-from tgbot.handlers.broadcast_message.utils import _send_message
+from tgbot.handlers.broadcast_message.utils import _send_message, _send_photo
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -80,6 +80,9 @@ def send_message(prev_state, next_state, user_id, context, prev_message_id):
     markup = next_state["markup"]
     message_text = get_message_text(next_state["text"], next_state['user_keywords'])
 
+    for file_path in next_state.get("photos", []):
+        _send_photo(file_path,  user_id=user_id)
+
     if next_msg_type == MessageType.POLL:
         
         message_id = None
@@ -122,6 +125,7 @@ def send_message(prev_state, next_state, user_id, context, prev_message_id):
                 user_id=user_id,
                 text=message_text
             )
+
     return message_id
 
 def edit_message(next_state, user_id, update):
@@ -129,6 +133,9 @@ def edit_message(next_state, user_id, update):
     message_text = get_message_text(next_state['text'], next_state['user_keywords'])
 
     next_msg_type = next_state['message_type']
+
+    for file_path in next_state.get("photos", []):
+        _send_photo(file_path,  user_id=user_id)
 
     if next_msg_type == MessageType.POLL:
         m = update.callback_query.edit_message_text(

@@ -170,19 +170,16 @@ class User(CreateUpdateTracker):
             prev_state = json.loads(r.get(message_id))
             next_state_id = prev_state['ways'].get(msg_text_key, r.get('error'))
             print('r.exists(user_id)', msg_text_key, next_state_id)
-            print(prev_state['ways'])
 
         elif r.exists(user_id):
             prev_state = None
             next_state_id = r.get('registration_error')
             print('registration_error', msg_text_key, next_state_id)
-            print(prev_state['ways'])
 
         else:
             prev_state = None
             next_state_id = r.get('start')
             print('start', msg_text_key, next_state_id)
-            print(prev_state['ways'])
 
         raw = r.get(next_state_id)
         Message.objects.filter(id=next_state_id).update(clicks=F('clicks') + 1)
@@ -411,8 +408,8 @@ class Message(CreateUpdateTracker):
             'ways': {**common_ways, **data['ways']},
             'markup': data['markup'] if data['markup'] else '',
             'message_type': data['message_type'],
+            'photos': [f.file.path for f in self.files.all()]
         }, ensure_ascii=False)
-
         return cash
 
     @staticmethod
@@ -434,6 +431,7 @@ class Message(CreateUpdateTracker):
                 'ways': {**common_ways, **data['ways']},
                 'markup': data['markup'],
                 'message_type': data['message_type'],
+                'photos': [f.file.path for f in m.files.all()]
             }, ensure_ascii=False)
 
         return cash

@@ -71,3 +71,12 @@ def _send_message(
         User.objects.filter(user_id=user_id).update(is_blocked_bot=False)
         return m.message_id
    
+
+def _send_photo(
+    photo_path: str,
+    user_id: Union[str, int],
+    tg_token: str = TELEGRAM_TOKEN
+) -> bool:
+    bot = telegram.Bot(tg_token)
+    bot.send_photo(user_id, photo=open(photo_path, 'rb'))
+    

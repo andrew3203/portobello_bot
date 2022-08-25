@@ -31,13 +31,16 @@ def setup_dispatcher(dp):
     # onboarding
     dp.add_handler(CommandHandler("start", chat.command_start))
     dp.add_handler(CommandHandler("balance", chat.command_balance))
-    dp.add_handler(MessageHandler(Filters.command, chat.recive_command))
-    # products  ,  stock  ,  loyalty_program  ,  support
+    
 
     # admin commands
     dp.add_handler(CommandHandler("admin", admin_handlers.admin))
     dp.add_handler(CommandHandler("stats", admin_handlers.stats))
     dp.add_handler(CommandHandler('export_users',admin_handlers.export_users))
+
+    dp.add_handler(MessageHandler(Filters.command, chat.recive_command))
+    # products  ,  stock  ,  loyalty_program  ,  support
+    
     dp.add_handler(CallbackQueryHandler(onboarding_handlers.secret_level, pattern=f"^{SECRET_LEVEL_BUTTON}"))
 
     # broadcast message
