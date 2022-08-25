@@ -40,3 +40,5 @@ django-cleanup
 cyrtranslit
 emoji
 flashtext
+
+gunicorn==20.1.0
