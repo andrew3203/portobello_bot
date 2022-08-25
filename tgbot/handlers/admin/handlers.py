@@ -9,6 +9,7 @@ from tgbot.handlers.admin.utils import _get_csv_from_qs_values
 from tgbot.models import User
 
 from tgbot.handlers.onboarding import static_text
+from tgbot.handlers.admin import static_text as st
 from tgbot.handlers.onboarding.keyboards import make_keyboard_for_start_command
 
 
@@ -19,7 +20,7 @@ def admin(update: Update, context: CallbackContext) -> None:
         update.message.reply_text(static_text.only_for_admins)
         return
     update.message.reply_text(
-        static_text.secret_admin_commands, 
+        st.secret_admin_commands, 
         reply_markup=make_keyboard_for_start_command()
     )
 
